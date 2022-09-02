@@ -30,8 +30,8 @@ int parseInput(char *Input_cmd)
 {
 	// This function will parse the input string into multiple commands or a single command with arguments depending on the delimiter (&&, ##, >, or spaces).
     int ret_val;
-    char *exit_cmd = "exit\n";
-    if(strcmp(Input_cmd,exit_cmd)==0) //If the command is exit command return 0
+    char *exitCommand = "exit\n";
+    if(strcmp(Input_cmd,exitCommand)==0) //If the command is exit command return 0
     {
         ret_val = 0;
         return ret_val;
@@ -74,7 +74,7 @@ int parseInput(char *Input_cmd)
 
 char** parseSingleCmd(char *cmd)
 {
-    char *copy_of_cmd;
+    char *copyOfCommand;
     char *delimeter = " ";
 
     cmd = strsep(&cmd,"\n"); // Removing new line character
@@ -84,30 +84,30 @@ char** parseSingleCmd(char *cmd)
         cmd++;
     }
 
-    copy_of_cmd = strdup(cmd); //Copied the command after removing white spaces from start
+    copyOfCommand = strdup(cmd); //Copied the command after removing white spaces from start
 
     char *end; 
     // pointer to point the end of the copied command
-    end = copy_of_cmd + strlen(copy_of_cmd)-1; 
+    end = copyOfCommand + strlen(copyOfCommand)-1; 
 
-    while(end > copy_of_cmd && (*end) == ' ') //Removing white spaces from end
+    while(end > copyOfCommand && (*end) == ' ') //Removing white spaces from end
     {
         end--;
     }
 
     end[1] = '\0'; //Terminating the command just after last non-whitespace character
-    //printf("\n***** cmd after triming id  = %s+end",copy_of_cmd);
+    //printf("\n***** cmd after triming id  = %s+end",copyOfCommand);
     char *first_token;
 
-    char *tokens = strsep(&copy_of_cmd, delimeter);
+    char *tokens = strsep(&copyOfCommand, delimeter);
     //Here we will get first token, the part of the command just before first white-space
 
 
-    //first_token = strsep(&copy_of_cmd, delimeter);
+    //first_token = strsep(&copyOfCommand, delimeter);
 
     if(strcmp(tokens,"cd") == 0) //If that first part is equal to cd, it's special case, we need to change the directory
     {
-        char *location = strsep(&copy_of_cmd,"\n"); //Location where we want to change directory
+        char *location = strsep(&copyOfCommand,"\n"); //Location where we want to change directory
         chdir(location); //command to change directory
         return NULL;
     }
@@ -130,7 +130,7 @@ char** parseSingleCmd(char *cmd)
         /*We already have extracted our 1st token while checking for 'cd' on line number 102
         so, we already have it in our tokens variable, we will just remove new-line char if present from
         it and store that token in arguments.
-        As we know when we use strsep, now copy_of_cmd will be pointing to the next character after delimeter,
+        As we know when we use strsep, now copyOfCommand will be pointing to the next character after delimeter,
         so that's what happens in while loop, will go on till extracted token becomes null
         */
         while(tokens)
@@ -138,7 +138,7 @@ char** parseSingleCmd(char *cmd)
             tokens = strsep(&tokens,"\n");
             arguments[iterator] = tokens;
             iterator++;
-            tokens = strsep(&copy_of_cmd,delimeter);
+            tokens = strsep(&copyOfCommand,delimeter);
         }
 
         arguments[iterator] = NULL;
@@ -207,8 +207,8 @@ void executeParallelCommands(char *cmd)
         i++;
     }
 
-    char *cmd_seprator = "&&";
-    char *cmd_ptr = strstr(cmd,cmd_seprator);
+    char *cmd_Separator = "&&";
+    char *cmd_ptr = strstr(cmd,cmd_Separator);
     //command pointer will point to the string staring from &&-- as we have used strstr which returns the 
     //first pointer of the charecter of matched substring, if present in main string
 
@@ -228,7 +228,7 @@ void executeParallelCommands(char *cmd)
         cmd_container[i] = temp;    //stores that command in temp in commands_container
         cmd_ptr[0] = ' ';           //delete the '\0' so we can move forward in the string
         cmd = cmd_ptr + 2;          //move to next command after delimiter
-        cmd_ptr = strstr(cmd,cmd_seprator);
+        cmd_ptr = strstr(cmd,cmd_Separator);
         i++;
     }
 
@@ -377,16 +377,16 @@ int main()
 	// Initial declarations
     signal(SIGINT, SIG_IGN);	// Ignore SIGINT signal
 	signal(SIGTSTP, SIG_IGN);	//disable signals so shell will only terminate by exit command
-    char working_directory[100];
+    char current_directory[100];
     size_t buffer_size = 150; //size_t is an unsigned integral data type, used to declare sizes of host files in c
-    char *Input_command;
+    char *inputCommand;
 	
 	while(1)	// This loop will keep your shell running until user exits.
 	{
 		// Print the prompt in format - currentWorkingDirectory$
-		if(getcwd(working_directory,100)!=NULL) //To get working directory
+		if(getcwd(current_directory,100)!=NULL) //To get working directory
         {
-            printf("%s$",working_directory);
+            printf("%s$",current_directory);
         }
         else
         {
@@ -394,15 +394,15 @@ int main()
             break;
         }
 		// accept input with 'getline()'
-        Input_command = (char*)malloc(buffer_size * sizeof(char));
+        inputCommand = (char*)malloc(buffer_size * sizeof(char));
         size_t characters;
 
         //Accept the input with getline
-		characters = getline(&Input_command,&buffer_size,stdin);
+		characters = getline(&inputCommand,&buffer_size,stdin);
 
 
 		// Parse input with 'strsep()' for different symbols (&&, ##, >) and for spaces.
-		int ret_val = parseInput(Input_command); 	
+		int ret_val = parseInput(inputCommand); 	
 
 		/*printf("\n\n** ret_val = %d **\n\n",ret_val)*/
 
@@ -413,13 +413,13 @@ int main()
 			break;
 		}		
 		else if(ret_val == 1)
-			executeParallelCommands(Input_command);		// This function is invoked when user wants to run multiple commands in parallel (commands separated by &&)
+			executeParallelCommands(inputCommand);		// This function is invoked when user wants to run multiple commands in parallel (commands separated by &&)
 		else if(ret_val == 2)
-			executeSequentialCommands(Input_command);	// This function is invoked when user wants to run multiple commands sequentially (commands separated by ##)
+			executeSequentialCommands(inputCommand);	// This function is invoked when user wants to run multiple commands sequentially (commands separated by ##)
 		else if(ret_val == 3)
-			executeCommandRedirection(Input_command);	// This function is invoked when user wants redirect output of a single command to and output file specificed by user
+			executeCommandRedirection(inputCommand);	// This function is invoked when user wants redirect output of a single command to and output file specificed by user
 		else
-			executeCommand(Input_command);		// This function is invoked when user wants to run a single commands
+			executeCommand(inputCommand);		// This function is invoked when user wants to run a single commands
 				
 	}
 	
