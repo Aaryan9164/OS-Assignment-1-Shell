@@ -1,4 +1,4 @@
-/********************************************************************************************
+/********************************
 This is a template for assignment on writing a custom Shell. 
 
 Students may change the return types and arguments of the functions given in this template,
@@ -15,8 +15,8 @@ or while inserting the single handler code (should be added at the correct place
 
 Finally, keep your filename as myshell.c, do not change this name (not even myshell.cpp, 
 as you not need to use any features for this assignment that are supported by C++ but not by C).
-*********************************************************************************************/
-
+*******************************/
+//ENROLL - BT19CSE012  NAME - BARTAKKE ONKAR SUHAS
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>			// exit()
@@ -24,441 +24,402 @@ as you not need to use any features for this assignment that are supported by C+
 #include <sys/wait.h>		// wait()
 #include <signal.h>			// signal()
 #include <fcntl.h>			// close(), open()
+#include <ctype.h>
+
+int parseInput(char *Input_cmd)
+{
+	// This function will parse the input string into multiple commands or a single command with arguments depending on the delimiter (&&, ##, >, or spaces).
+    int ret_val;
+    char *exit_cmd = "exit\n";
+    if(strcmp(Input_cmd,exit_cmd)==0) //If the command is exit command return 0
+    {
+        ret_val = 0;
+        return ret_val;
+    }
 
 
-/*This function will parse the input string into multiple commands or a single 
-command with arguments depending on the delimiter (&&, ##, >, or spaces).*/
-int parseInput(char* input_str, char** command_list)
+    char *copy_cmd;
+	copy_cmd = strdup(Input_cmd); 
+
+    /*create a duplicate of our command as we are using strsep on input command it will change
+    pointer to the next character after the passed delimeter*/
+
+    copy_cmd = strsep(&Input_cmd,"\n"); 	//remove new line character from the string
+    // In copy of command we have the actual entered command without new line character
+	/*-----------------------------Parsing Logic-----------------------------------------------------*/
+
+	if(strstr(copy_cmd, "&&") != NULL) // set ret_val=1 for parallel execution of multiple commands 
+	{
+		ret_val = 1;       			        
+        return ret_val;
+	}
+	else if(strstr(copy_cmd, "##") != NULL) // set ret_val=2 for sequential execution of multiple commands
+	{
+		ret_val = 2;
+        return ret_val;					
+	}
+	else if(strstr(copy_cmd, ">") != NULL) // set ret_val=3 for command redirection
+	{
+		ret_val = 3;
+        return ret_val;							
+	}
+	else
+	{
+		ret_val = 4;
+        return ret_val;							//setret_vals=4 for  single command execution
+	}
+	return ret_val;
+
+}
+
+char** parseSingleCmd(char *cmd)
+{
+    char *copy_of_cmd;
+    char *delimeter = " ";
+
+    cmd = strsep(&cmd,"\n"); // Removing new line character
+
+    while(*(cmd) == ' ') //Removing White spaces from start
+    {
+        cmd++;
+    }
+
+    copy_of_cmd = strdup(cmd); //Copied the command after removing white spaces from start
+
+    char *end; 
+    // pointer to point the end of the copied command
+    end = copy_of_cmd + strlen(copy_of_cmd)-1; 
+
+    while(end > copy_of_cmd && (*end) == ' ') //Removing white spaces from end
+    {
+        end--;
+    }
+
+    end[1] = '\0'; //Terminating the command just after last non-whitespace character
+    //printf("\n***** cmd after triming id  = %s+end",copy_of_cmd);
+    char *first_token;
+
+    char *tokens = strsep(&copy_of_cmd, delimeter);
+    //Here we will get first token, the part of the command just before first white-space
+
+
+    //first_token = strsep(&copy_of_cmd, delimeter);
+
+    if(strcmp(tokens,"cd") == 0) //If that first part is equal to cd, it's special case, we need to change the directory
+    {
+        char *location = strsep(&copy_of_cmd,"\n"); //Location where we want to change directory
+        chdir(location); //command to change directory
+        return NULL;
+    }
+    else
+    {
+        size_t buff,iterator; //size_t is an unsigned integral data type, used to declare sizes of host files in c
+        //Buff => buffer , to declare sizes of arguments
+
+        buff = 50;
+        char **arguments = (char**)malloc(buff*sizeof(char*));
+
+        for(iterator = 0; iterator < buff ; iterator++)
+        {
+            arguments[iterator] = (char*)malloc(buff*sizeof(char));
+        }
+
+        //char *tokens;
+        //tokens = strsep(&cmd,delimeter);
+        iterator = 0;
+        /*We already have extracted our 1st token while checking for 'cd' on line number 102
+        so, we already have it in our tokens variable, we will just remove new-line char if present from
+        it and store that token in arguments.
+        As we know when we use strsep, now copy_of_cmd will be pointing to the next character after delimeter,
+        so that's what happens in while loop, will go on till extracted token becomes null
+        */
+        while(tokens)
+        {
+            tokens = strsep(&tokens,"\n");
+            arguments[iterator] = tokens;
+            iterator++;
+            tokens = strsep(&copy_of_cmd,delimeter);
+        }
+
+        arguments[iterator] = NULL;
+
+        return arguments;
+    }
+}
+
+
+void executeCommand(char *cmd)
+{
+	// This function will fork a new process to execute a command
+    char** cmd_args = parseSingleCmd(cmd);
+	int rc;
+	rc = fork();
+
+    if(rc < 0)  // fork failed; exit
+    {
+        exit(0);
+    }
+    else if(rc == 0)
+    {
+        // EXEC system call
+
+        //we have to enable signals again for child processes
+		signal(SIGTSTP, SIG_DFL); 
+        signal(SIGINT, SIG_DFL);
+        /*SIGINT is the interrupt signal (ctrl+C). Its default behaviour is to terminate the process.
+        SIGINT signal can be dis-positioned, means one can change the default behaviour 
+        ( By calling sighandler, or setting it SIG_IGN ) Now once the action is changes and you want to set it
+        again the default behaviour of this signal then you should write*/
+
+        int ret_val = execvp(cmd_args[0],cmd_args);
+
+        if(ret_val < 0) //execvp error code
+        {
+            printf("Shell: Incorrect command\n");
+            exit(1);
+        }
+    }
+    else
+    {
+        int wait_rc = wait(NULL);
+    }
+}
+
+void executeParallelCommands(char *cmd)
+{
+	// This function will run multiple commands in parallel
+    int cmd_count=0,i=0;
+    //printf("\n\nInside parallel cmds\n\n");
+
+    //To get count of parallel commands separated by &&
+    while(1)
+    {
+        if(cmd[i]=='&' && cmd[i+1]=='&')
+        {
+            cmd_count++;
+            i++;
+        }
+        else if(cmd[i]=='\0')
+        {
+            break; // End of command so break
+        }
+
+        i++;
+    }
+
+    char *cmd_seprator = "&&";
+    char *cmd_ptr = strstr(cmd,cmd_seprator);
+    //command pointer will point to the string staring from &&-- as we have used strstr which returns the 
+    //first pointer of the charecter of matched substring, if present in main string
+
+    char **cmd_container = (char**)malloc((cmd_count+2)*sizeof(char*));
+
+    i=0;
+    while(i<=cmd_count)
+    {
+        cmd_container[i] = (char*)malloc(150*sizeof(char));
+        i++;
+    }
+    i=0;
+    while(cmd_ptr!=NULL)
+    {
+        cmd_ptr[0] = '\0';          //replace & with \0 to get first command before the delimiter
+        char *temp = strdup(cmd);   //temp stores the individual command
+        cmd_container[i] = temp;    //stores that command in temp in commands_container
+        cmd_ptr[0] = ' ';           //delete the '\0' so we can move forward in the string
+        cmd = cmd_ptr + 2;          //move to next command after delimiter
+        cmd_ptr = strstr(cmd,cmd_seprator);
+        i++;
+    }
+
+    cmd_container[i] = cmd;
+    //printf("\n\nStarting execution\n\n");
+    for(i=0;i<=cmd_count;)
+    {
+        int rc = fork();  //making child process
+
+        if(rc < 0)    // fork failed; exit
+        {
+            exit(0);
+        }   
+        else if(rc == 0)
+        {
+            //we have to enable signals again for child processes
+            signal(SIGINT, SIG_DFL);
+			signal(SIGTSTP, SIG_DFL);
+
+            char **cmd_args = parseSingleCmd(cmd_container[i]);
+
+            if(cmd_args == NULL)
+            {
+                exit(0);
+            }
+
+            int ret_val = execvp(cmd_args[0],cmd_args);
+
+            if(ret_val < 0)  //execvp error code
+            {
+               printf("Shell: Incorrect command\n");
+			   exit(1); 
+            }
+        }
+        else
+        {
+            //no wait statement here as it needs to run parallely
+			//parent process
+			i++;
+        }
+    }
+}
+
+void executeSequentialCommands(char *cmd)
 {	
-	// input_str    = the input string we got using getline
-	// command_list = array of strings containing list of single commands seperated 
-	//                by the detected delimeter
+	// This function will run multiple commands in parallel
 
-	int retval;
-	
-	// get newstring without \n, i.e without the last character
-	int len = strlen(input_str);
-	char* str_without_newline = (char *)malloc(len-1);   
+    int i,cmd_count=0;
+    //Counting number of sequential commands are t be executed separated by ##
+    for(i=0;cmd[i]!='\0';i++)
+    {
+        if(cmd[i] == '#')
+        {
+            cmd_count++;
+            i++;
+        }
+    }
+    //Now seperate all individual commands by delimiter ## and store it in cmd_container for furture execution
+    char **cmd_container = (char**)malloc((cmd_count+2)*sizeof(char*));
 
-	for(int j = 0; j < len-1; j++)
-		str_without_newline[j] = input_str[j];
-	strcat(str_without_newline," ");
+    i=0;
+    while(i<=cmd_count)
+    {
+        cmd_container[i] = (char*)malloc((50)*sizeof(char));
+        i++;
+    }
 
-	// get a copy of the new string without "\n"
-	char* duplicate = strdup(str_without_newline);
-	
-	// check for the presence and type of delimiters
-	if(strstr(duplicate, "&&") != NULL) 
-	{
-		// isolate each command seperated by delimeter && 
-		int i = 0;
-		char* sep_str;
+    i=0;
+    char *delimeter = "##";
+    char *cmd_ptr = strstr(cmd,delimeter); //return the pointer to the presence of the first delimiter
 
-		while((sep_str = strsep(&duplicate,"&&")) != NULL )
-		{
-			int count = 0;
+    while(cmd_ptr != NULL ) //Go through all commands
+    {
+        cmd_ptr[0] = '\0';          //replace & with \0 to get first command before the delimiter
+        char *temp = strdup(cmd);   //temp stores the individual command
+        cmd_container[i] = temp;    	//stores that command in temp in command_container
+        i++;
+        cmd_ptr[0] = ' ';           //Replace the '\0' so we can move forward in the string
+        cmd = cmd_ptr +2 ;
+        cmd_ptr = strstr(cmd,delimeter);//move to next command after delimiter
+    }
 
-			// store the isolated commands in command_list
-			strcpy(command_list[i],sep_str);
-			i++;
-		}
-		command_list[i]=NULL;
-
-		// set retval=1 for parallel execution of multiple commands
-		retval = 1;  				
-	}
-	else if(strstr(duplicate, "##") != NULL)
-	{
-		// isolate each command seperated by delimeter ## 
-		int i = 0;
-		char* sep_str;
-
-		while((sep_str = strsep(&duplicate,"##")) != NULL )
-		{
-			int count = 0;
-
-			// store the isolated commands in command_list
-			strcpy(command_list[i],sep_str);
-			i++;
-		}
-		command_list[i]=NULL;
-
-		// set retval=2 for sequential execution of multiple commands
-		retval = 2;					
-	}
-	else if(strstr(duplicate, ">") != NULL)
-	{
-		// isolate each command seperated by delimeter > 
-		int i = 0;
-		char* sep_str;
-		while((sep_str = strsep(&duplicate,">")) != NULL )
-		{
-			int count = 0;
+    cmd_container[i] = cmd;
 
 
-			strcpy(command_list[i],sep_str);
-			i++;
-		}
-		command_list[i]=NULL;
-
-		// set retval=3 for command redirection
-		retval = 3;					
-	}
-	else
-	{
-		// pass the entire command to command list in case of no delimiter
-		char* token = duplicate;
-
-		command_list[0]=token;
-		command_list[1]=NULL;
-
-		//set retval=4 for  single command execution
-		retval = 4;					
-	}
-
-	return retval;
+    i=0;
+    //Now Execute each command present in cmd_container as a single command by passing it to   executeCommand(copy_cmd);
+    // executeCommand(copy_cmd) this will fork a child proccess and make parent wait until, child is over, after that
+    // parent also ends and control is back to this function and 'i' is incremented for next command to be executed
+    while(i<=cmd_count)
+    {
+        char *copy_cmd = strdup(cmd_container[i]);
+        executeCommand(copy_cmd);
+        i++;
+    }
+ 
 }
 
-/* This function will break the isolated command strings into their constituent command
-and command arguments, and return the array of strings */
-char** get_commandArgs(char* command)
+
+void executeCommandRedirection(char *cmd)
 {
-	//remove new line character from the string
-	command = strsep(&command, "\n");		
+    // This function will run a single command with output redirected to an output file specificed by user
+    char *command = strsep(&cmd,">");
+    /*strsep will return ptr to the 1st part of the command before > , which is our actual command to
+    be executed, and now, cmd will be pointing to the part which is just after delimeter '>', which is out file name*/
 
-	// remove whitespaces before a command if there are present
-	while(*command == ' ')					
-		command++;
-	
-	// create duplicate command string
-	char* dup_command = strdup(command);
+    char *filename = cmd;
+    while(*filename == ' ') //Removing whitespaces if present
+    {
+        filename++;
+    }
 
-	// get the command in a string, to check for "cd"
-	char* first_sep = strsep(&command, " ");
+    int rc = fork(); //Forking child process
+    if(rc < 0) // In case fork fails coz of lack of memory
+    {
+        exit(0);
+    }
+    else if(rc == 0) //Child process
+    {
+        close(STDOUT_FILENO);  //closing the STDOUT
 
-	// change directory is "cd" is encountered
-	if (strcmp(first_sep,"cd")==0)
-	{
-		chdir(strsep(&command, "\n "));
-	}
-	else
-	{
-		// allocate memory to the array of strings, to store the command its arguments
-		char** command_args;
-		command_args = (char**)malloc(sizeof(char*)*10);
-		for(int i=0; i<10; i++)
-			command_args[i] = (char*)malloc(50*sizeof(char));
+	    
+        //opening the file where we want to write the output
+        open(strsep(&filename,"\n"),O_CREAT | O_RDWR, S_IRWXU); 
 
-		char* sep_str;
-		int i = 0;
+        char **arguments = parseSingleCmd(command);
 
-		//if there's a string with spaces, else directly assign the string to command_args[i]
-		if (strstr(dup_command, " ")!=NULL)
-		{	
-			// iterate over the space seperated arguments
-			while ((sep_str = strsep(&dup_command," ")) != NULL)					
-			{
-				// remove whitespaces before a command if there are present
-				while(*sep_str == ' ')					
-					sep_str++;
-				command_args[i] = strsep(&sep_str, " ");	
-				i++;
-			}
-			
-			// if current string is an empty string, assign NULL
-			if(strlen(command_args[i-1])==0)
-				command_args[i-1] = NULL;
-			else
-				command_args[i] = NULL;
+        int retval = execvp(arguments[0],arguments);
 
-			i=0;
-			return command_args;
-		}
-		else
-		{
-			// assign the entire command in case of no spaces
-			strcpy(command_args[0], dup_command);
-			command_args[1] = NULL;
-			return command_args;
-		}
-		
-	}
-	return NULL;
-}
-
-// This function will fork a new process to execute a command
-void executeCommand(char** command_list)
-{
-
-	// get the command and arg list from given command
-	char** command_args = get_commandArgs(command_list[0]);
-
-	// fork process
-	pid_t pid = fork();
-
-	//child Process
-	if (pid==0)          
-	{
-		// execute the command and it's args in child
-		int retval = execvp(command_args[0], command_args);
-
-		 //execvp error code
-		if (retval < 0)     
-		{
+        if (retval < 0)
+		{ //execvp error code
 			printf("Shell: Incorrect command\n");
 			exit(1);
 		}
-	} 
+        
+    }
+    else
+    {
+        int waiting_rc = wait(NULL); //waiting for child to be over
+    }
 
-	// Parent Process
-	else if(pid)
-	{
-		//wait for the child to terminate
-		wait(NULL);
-	}
-
-	// if fork fails, then exit
-	else
-		exit(0);
-}
-
-// This function will run a single command with output redirected to an output file specificed by user
-void executeCommandRedirection(char** command_list)
-{
-	// get the command and arg list from given command
-	char* command = command_list[0];
-
-	// getting the string that contains filename
-	char* file_name = command_list[1]; 
-
-	// remove whitespaces before a filename if there are present
-	while(*file_name == ' ')			
-		file_name++;
-
-	// Close stdout
-	
-
-	// open given file, or create if not found one
-	int filefd = open(file_name, O_WRONLY|O_CREAT|O_APPEND, 0666);	
-	
-	// fork process
-	int pid = fork();
-
-	// child Process
-	if (pid ==0) 
-	{
-		close(STDOUT_FILENO);
-		dup(filefd);
-		// get command args to execute
-		char** command_args = get_commandArgs(command);
-		int retval = execvp(command_args[0], command_args);
-
-		//execvp error code
-		if (retval < 0)      
-		{
-			printf("Shell: Incorrect command\n");
-			exit(1);
-		}
-	} 
-
-	// Parent Process
-	else if(pid)
-	{
-		close(filefd);
-		int t=wait(NULL);
-	}
-
-	// if fork fails, then exit
-	else
-		exit(0);
-}
-
-// This function will run multiple commands in parallel
-void executeParallelCommands(char** command_list)
-{
-	int i = 0;
-	while(command_list[i]!=NULL)
-	{
-		char* dup_command = strdup(command_list[i]);
-		if (get_commandArgs(dup_command) == NULL)
-		{
-			i++;
-			continue;
-		}
-		else if(strlen(command_list[i])>0)
-		{
-			// fork process
-			int pid = fork();
-			if (pid == 0)	
-			{
-				
-				//we have to enable signals again for child processes	
-				signal(SIGINT, SIG_DFL);
-				signal(SIGTSTP, SIG_DFL);	
-
-				// get the command and arg list from given command
-				char** command_args = get_commandArgs(command_list[i]);
-
-				int return_val = execvp(command_args[0], command_args);
-
-				//execvp error code
-				if (return_val < 0)					
-				{	 
-					printf("Shell: Incorrect command\n");
-					exit(1);
-				}
-				exit(0);
-			}
-			// Parent Process
-			else if (pid)
-			{
-				//no wait statement here as it needs to run parallely
-				//parent process
-				i++;			
-				if(command_list[i+1]!=NULL)
-					wait(NULL);
-				else
-					continue;	
-			}
-			// if fork fails, then exit
-			else
-			{ 
-				exit(1);	
-			}
-		}
-		else
-		{
-			i++;
-		}
-					
-	}
-}
-
-// This function will run multiple commands in parallel
-void executeSequentialCommands(char** command_list)
-{	
-
-	int i = 0;
-	while(command_list[i]!=NULL)
-	{	
-		// get the command and arg list from given command
-		char* dup_command = strdup(command_list[i]);
-
-		// special case for "cd"
-		if(strstr(dup_command,"cd")!=NULL)
-		{
-			get_commandArgs(command_list[i]);
-			i++;
-		}
-		// case where there's empty string
-		else if(strlen(command_list[i])>0)
-		{
-
-			int pid = fork(); //making child process
-
-			// child process
-			if (pid == 0)		
-			{
-				//we have to enable signals again for child processes
-				signal(SIGINT, SIG_DFL);
-				signal(SIGTSTP, SIG_DFL);		
-
-				// parsing each command
-				char** command_args = get_commandArgs(command_list[i]); 
-				int return_val = execvp(command_args[0], command_args);
-			
-				//execvp error code
-				if (return_val < 0)					
-				{	 
-					printf("Shell: Incorrect command\n");
-					exit(1);
-				}	
-	
-			}
-
-			// Parent Process
-			else if (pid)
-			{
-				// we have to enable signals again for child processes
-				wait(NULL);
-				i++;
-			}	
-			else
-			{ 
-				exit(1);
-			}
-		}
-		else
-		{
-			i++;
-		}
-		
-	}
-}
-
-// Signal Handler for SIGINT (CTRL + C)
-void sigintHandler(int sig_num)
-{
-    /* Reset handler to catch SIGINT next time. */
-    signal(SIGINT, sigintHandler);
-    printf("\n Cannot be terminated using Ctrl+C, enter 'exit' \n");
-}
-
-// Signal Handler for SIGTSTP (CTRL + Z)
-void sighandler(int sig_num)
-{
-    // Reset handler to catch SIGTSTP next time
-    signal(SIGTSTP, sighandler);
-    printf("\n Cannot be terminated using Ctrl+Z, enter 'exit'\n");      
 }
 
 int main()
 {
 	// Initial declarations
-	char* str=NULL;
-	size_t str_len = 64;
-
-	signal(SIGINT, sigintHandler);
-	signal(SIGTSTP, sighandler);
+    signal(SIGINT, SIG_IGN);	// Ignore SIGINT signal
+	signal(SIGTSTP, SIG_IGN);	//disable signals so shell will only terminate by exit command
+    char working_directory[100];
+    size_t buffer_size = 150; //size_t is an unsigned integral data type, used to declare sizes of host files in c
+    char *Input_command;
 	
-	// This loop will keep your shell running until user exits.
-	while(1)	
+	while(1)	// This loop will keep your shell running until user exits.
 	{
-		char curr_dir[64];
-
 		// Print the prompt in format - currentWorkingDirectory$
-		getcwd(curr_dir, 64);
-		
-		printf("%s$",curr_dir);          
-
+		if(getcwd(working_directory,100)!=NULL) //To get working directory
+        {
+            printf("%s$",working_directory);
+        }
+        else
+        {
+            printf("Error...\n");
+            break;
+        }
 		// accept input with 'getline()'
-		getline(&str,&str_len,stdin);   
+        Input_command = (char*)malloc(buffer_size * sizeof(char));
+        size_t characters;
 
-		// allocate memory for the list of strings to strore isolated
-		// commands, seperated by delimiters
-		char** command_list;
-		command_list = (char**)malloc(sizeof(char*)*10);
-		for(int i=0; i<10; i++)
-			command_list[i] = (char*)malloc(50*sizeof(char));
+        //Accept the input with getline
+		characters = getline(&Input_command,&buffer_size,stdin);
 
-		// When user uses exit command		
-		if(strcmp(str, "exit\n")==0)
+
+		// Parse input with 'strsep()' for different symbols (&&, ##, >) and for spaces.
+		int ret_val = parseInput(Input_command); 	
+
+		/*printf("\n\n** ret_val = %d **\n\n",ret_val)*/
+
+    
+		if(ret_val == 0)	// When user uses exit command.
 		{
 			printf("Exiting shell...\n");
 			break;
-		}
-
-		// Parse input with 'strsep()' for different symbols (&&, ##, >) and for spaces.
-		int ret = parseInput(str, command_list); 
-	
-		if(ret==1)
-			executeParallelCommands(command_list);		// This function is invoked when user wants to run multiple commands in parallel (commands separated by &&)
-		else if(ret==2)
-			executeSequentialCommands(command_list);	// This function is invoked when user wants to run multiple commands sequentially (commands separated by ##)
-		else if(ret==3)
-			executeCommandRedirection(command_list);	// This function is invoked when user wants redirect output of a single command to and output file specificed by user
+		}		
+		else if(ret_val == 1)
+			executeParallelCommands(Input_command);		// This function is invoked when user wants to run multiple commands in parallel (commands separated by &&)
+		else if(ret_val == 2)
+			executeSequentialCommands(Input_command);	// This function is invoked when user wants to run multiple commands sequentially (commands separated by ##)
+		else if(ret_val == 3)
+			executeCommandRedirection(Input_command);	// This function is invoked when user wants redirect output of a single command to and output file specificed by user
 		else
-			executeCommand(command_list);		// This function is invoked when user wants to run a single commands
+			executeCommand(Input_command);		// This function is invoked when user wants to run a single commands
 				
 	}
 	
