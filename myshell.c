@@ -16,7 +16,7 @@ or while inserting the single handler code (should be added at the correct place
 Finally, keep your filename as myshell.c, do not change this name (not even myshell.cpp, 
 as you not need to use any features for this assignment that are supported by C++ but not by C).
 *******************************/
-//ENROLL - BT19CSE012  NAME - BARTAKKE ONKAR SUHAS
+//ENROLL - BT20CSE003 AARYAN PATEL
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>			// exit()
@@ -286,7 +286,7 @@ void executeSequentialCommands(char *cmd)
             i++;
         }
     }
-    //Now seperate all individual commands by delimiter ## and store it in cmd_container for furture execution
+    //Now seperate all individual commands by delimiter ## and store it in cmd_container for future execution
     char **cmd_container = (char**)malloc((cmd_count+2)*sizeof(char*));
 
     i=0;
